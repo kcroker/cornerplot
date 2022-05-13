@@ -5,12 +5,10 @@ from matplotlib import gridspec
 import seaborn as sns
 from tqdm import tqdm
 
-
 def CornerPlot(dfs, df_names, corner_params, weights=None, bandwidth_fac=1, thresh=[68,95], downsample=False, prior=None, \
-                cuts=None, limits=None, plot_limits=None, labels=None, ticks=None, title=None, Nbins=50, plot_pts=False, plot_hist=False, print_credible=90, colormap=None, save=False):
+               cuts=None, limits=None, plot_limits=None, labels=None, ticks=None, title=None, Nbins=50, plot_pts=False, plot_hist=False, print_credible=90, colormap=None, save=False, resolution=300):
     """
     Makes a sexy cornerplot.
-
     :dfs: list of pandas dataframes that have the data you wish to plot
     :df_names: list that specifies the label for each dataframe in the legend
     :corner_params: names of the series you wish the use in the corner plot
@@ -30,6 +28,7 @@ def CornerPlot(dfs, df_names, corner_params, weights=None, bandwidth_fac=1, thre
     :print_credible: prints the median and symmetric credible interval provided above the marginalized distributions if not False
     :colormap: allows for user-input color maps
     :save: saves as `cornerplot.png` if True, or at specific path if string is provided
+    :resolution: DPI to use when saving the visualized corner plot
     """
     # set up figure and axes
     fig = plt.figure(figsize=(7*len(corner_params),6*len(corner_params)))
@@ -210,6 +209,7 @@ def CornerPlot(dfs, df_names, corner_params, weights=None, bandwidth_fac=1, thre
         if save == True:
             plt.savefig('./corner_plot.png', dpi=300)
         else:
-            plt.savefig(save, dpi=300)
+            plt.savefig(save, dpi=72)
 
-
+    # Close it to save memory
+    plt.close()
