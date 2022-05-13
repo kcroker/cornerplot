@@ -6,7 +6,7 @@ import seaborn as sns
 from tqdm import tqdm
 
 def CornerPlot(dfs, df_names, corner_params, weights=None, bandwidth_fac=1, thresh=[68,95], downsample=False, prior=None, \
-               cuts=None, limits=None, plot_limits=None, labels=None, ticks=None, title=None, Nbins=50, plot_pts=False, plot_hist=False, print_credible=90, colormap=None, save=False, resolution=300):
+               cuts=None, limits=None, plot_limits=None, labels=None, ticks=None, title=None, Nbins=50, plot_pts=False, plot_kde=True, plot_hist=False, print_credible=90, colormap=None, save=False, resolution=300):
     """
     Makes a sexy cornerplot.
     :dfs: list of pandas dataframes that have the data you wish to plot
@@ -24,6 +24,7 @@ def CornerPlot(dfs, df_names, corner_params, weights=None, bandwidth_fac=1, thre
     :title: suptitle of the corner plot
     :Nbins: number of bins (in each dimension) to use for the marginalized histograms and for constructing the 2d density
     :plot_pts: boolean that determines whether to plot scatterplot points
+    :plot_kde:  boolean that determines whether marginalized KDEs are plotted
     :plot_hist: boolean that determines whether histogram is plotted behind marginalized KDEs
     :print_credible: prints the median and symmetric credible interval provided above the marginalized distributions if not False
     :colormap: allows for user-input color maps
@@ -89,21 +90,26 @@ def CornerPlot(dfs, df_names, corner_params, weights=None, bandwidth_fac=1, thre
             param_data = np.asarray(df[param])
 
             ### PLOT MARGINALIZED DISTRIBUTIONS ###
-            sns.kdeplot(data=param_data, ax=marg_axs[idx], weights=_weights, bw_adjust=bandwidth_fac, \
-                        gridsize=1000, clip=(_limits[param]), color=colors[df_idx], lw=2, vertical=False, label=df_names[df_idx])
+            if plot_kde:
+                sns.kdeplot(data=param_data, ax=marg_axs[idx], weights=_weights, bw_adjust=bandwidth_fac, \
+                            gridsize=1000, clip=(_limits[param]), color=colors[df_idx], lw=2, vertical=False, label=df_names[df_idx])
+                
             if plot_hist==True:
                 _ = marg_axs[idx].hist(param_data, density=True, weights=_weights, histtype='step', color=colors[df_idx], bins=Nbins, \
-                            alpha=0.4, orientation="vertical", label=None)
+                                       alpha=(0.4 if plot_kde else 1), orientation="vertical", label=(None if plot_kde else df_names[df_idx]))
 
             # plot prior distributions, if provided
             if (prior is not None) and (df_idx==len(dfs)-1):
                 if prior[param] is not None:
                     prior_data = np.asarray(prior[param])
-                    sns.kdeplot(data=prior_data, ax=marg_axs[idx], bw_adjust=bandwidth_fac, \
-                                gridsize=1000, color='k', lw=1, linestyle=':', vertical=False, label='prior')
+
+                    if plot_kde:
+                        sns.kdeplot(data=prior_data, ax=marg_axs[idx], bw_adjust=bandwidth_fac, \
+                                    gridsize=1000, color='k', lw=1, linestyle=':', vertical=False, label='prior')
+                        
                     if plot_hist==True:
                         _ = marg_axs[idx].hist(prior_data, density=True, weights=_weights, histtype='step', color='k', bins=Nbins, \
-                                    alpha=0.4, linestyle=':', lw=1, orientation="vertical")
+                                               alpha=(0.4 if plot_kde else 1), linestyle=':', lw=1, orientation="vertical", label=(None if plot_kde else 'prior'))
 
             # plot median and credible range for the specified threshold values
             median = np.median(param_data)
