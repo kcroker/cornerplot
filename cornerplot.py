@@ -1,12 +1,18 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.colors
 from matplotlib import gridspec
 import seaborn as sns
 from tqdm import tqdm
+from cycler import cycler
+
+# Define a line-type cycler
+default_cycler = (cycler(linestyle=['-', '-', '--', ':', '-.']))
+plt.rc('axes', prop_cycle=default_cycler)
 
 def CornerPlot(dfs, df_names, corner_params, weights=None, bandwidth_fac=1, thresh=[68,95], downsample=False, prior=None, \
-               cuts=None, limits=None, plot_limits=None, labels=None, ticks=None, title=None, Nbins=50, plot_pts=False, plot_kde=True, plot_hist=False, print_credible=90, colormap=None, save=False, resolution=300):
+               cuts=None, limits=None, plot_limits=None, labels=None, ticks=None, title=None, Nbins=50, plot_pts=False, plot_kde=True, plot_hist=False, print_credible=90, colormap=None, save=False, resolution=300, fill_banan=False):
     """
     Makes a sexy cornerplot.
     :dfs: list of pandas dataframes that have the data you wish to plot
@@ -38,8 +44,17 @@ def CornerPlot(dfs, df_names, corner_params, weights=None, bandwidth_fac=1, thre
 
     # get colormap
     stock_colors = ['#377eb8','#ff7f00','#4daf4a','#f781bf','#a65628','#984ea3','#999999','#e41a1c','#dede00']
-    colors = colormap if colormap is not None else stock_colors
+    colors = [matplotlib.cm.get_cmap(colormap)(x/len(stock_colors)) for x in range(len(stock_colors))] if colormap is not None else stock_colors
 
+    # Build some nice gradients from the stock colors with increasing alpha, for use in shaded plots
+    cmaps = []
+    if fill_banan:
+        for color in colors:
+            cmaps.append(matplotlib.colors.LinearSegmentedColormap.from_list('derpy_%s' % color,
+                                                                             [matplotlib.colors.to_rgba(color, 0.2),
+                                                                              matplotlib.colors.to_rgba(color, 0.4),
+                                                                              matplotlib.colors.to_rgba(color, 0.7)], N=3))
+    
     # store all the marginal distribution axes
     marg_axs = [fig.add_subplot(gs[i,i]) for i in range(len(corner_params))]
 
@@ -91,8 +106,10 @@ def CornerPlot(dfs, df_names, corner_params, weights=None, bandwidth_fac=1, thre
 
             ### PLOT MARGINALIZED DISTRIBUTIONS ###
             if plot_kde:
+                # Do some custom lineweighting
+                lw = 4 if df_idx == 0 else 2
                 sns.kdeplot(data=param_data, ax=marg_axs[idx], weights=_weights, bw_adjust=bandwidth_fac, \
-                            gridsize=1000, clip=(_limits[param]), color=colors[df_idx], lw=2, vertical=False, label=df_names[df_idx])
+                            gridsize=1000, clip=(_limits[param]), color=colors[df_idx], lw=lw, vertical=False, label=df_names[df_idx])
                 
             if plot_hist==True:
                 _ = marg_axs[idx].hist(param_data, density=True, weights=_weights, histtype='step', color=colors[df_idx], bins=Nbins, \
@@ -105,7 +122,7 @@ def CornerPlot(dfs, df_names, corner_params, weights=None, bandwidth_fac=1, thre
 
                     if plot_kde:
                         sns.kdeplot(data=prior_data, ax=marg_axs[idx], bw_adjust=bandwidth_fac, \
-                                    gridsize=1000, color='k', lw=1, linestyle=':', vertical=False, label='prior')
+                                    gridsize=1000, color='k', lw=1, linestyle=':', vertical=False, label='Prior')
                         
                     if plot_hist==True:
                         _ = marg_axs[idx].hist(prior_data, density=True, weights=_weights, histtype='step', color='k', bins=Nbins, \
@@ -143,11 +160,16 @@ def CornerPlot(dfs, df_names, corner_params, weights=None, bandwidth_fac=1, thre
 
             # if print_credible, print the median and provided credible interval above the marginalized
             # NOTE: this only prints info for the first dataframe provided!
-            if print_credible is not False and df_idx==0:
+            if print_credible is not False:
                 median = np.median(param_data)
                 cred_low = np.percentile(param_data, (100-print_credible)/2.0)
                 cred_high = np.percentile(param_data, 100 - (100-print_credible)/2.0)
-                marg_axs[idx].set_title(r'$%0.2f ^{+%0.2f} _{-%0.2f}$' % (median, cred_high-median, median-cred_low), pad=15)
+
+                if df_idx > 0:
+                    titlestr = marg_axs[idx].get_title()
+                    marg_axs[idx].set_title(r'%s, $%0.2f ^{+%0.2f} _{-%0.2f}$' % (titlestr, median, cred_high-median, median-cred_low), pad=15)
+                else:
+                    marg_axs[idx].set_title(r'$%0.2f ^{+%0.2f} _{-%0.2f}$' % (median, cred_high-median, median-cred_low), pad=15)
 
             # setup joint axes
             for joint_idx, joint_param in enumerate(corner_params):
@@ -171,9 +193,15 @@ def CornerPlot(dfs, df_names, corner_params, weights=None, bandwidth_fac=1, thre
                 ### PLOT JOINT DISTRIBUTIONS ###
                 thresholds = [1-t/100.0 for t in thresh[::-1]]
 
-                sns.kdeplot(x=param_data, y=joint_param_data, ax=joint_ax, weights=_weights, bw_adjust=bandwidth_fac, \
-                            levels=thresholds, clip=(_limits[param],_limits[joint_param]), colors=[colors[df_idx]], \
-                            cmap=None, shade=False, alpha=0.7, linewidths=np.linspace(1,3,len(thresholds)))
+                if fill_banan:
+                    sns.kdeplot(x=param_data, y=joint_param_data, ax=joint_ax, weights=_weights, bw_adjust=bandwidth_fac, \
+                                levels=[0.05,0.32,1], clip=(_limits[param],_limits[joint_param]), cmap=cmaps[df_idx], 
+                                fill=fill_banan)
+                else:
+                    sns.kdeplot(x=param_data, y=joint_param_data, ax=joint_ax, weights=_weights, bw_adjust=bandwidth_fac, \
+                                levels=thresholds, clip=(_limits[param],_limits[joint_param]), colors=[colors[df_idx]], \
+                                linewidths=np.linspace(1,3,len(thresholds)), alpha=0.7)
+                
                 if plot_pts==True:
                     joint_ax.scatter(param_data, joint_param_data, \
                                  color=colors[df_idx], s=0.1, marker='.', alpha=0.3, rasterized=True)
@@ -213,9 +241,9 @@ def CornerPlot(dfs, df_names, corner_params, weights=None, bandwidth_fac=1, thre
     # save figure
     if save is not False:
         if save == True:
-            plt.savefig('./corner_plot.png', dpi=300)
+            plt.savefig('./corner_plot.png', dpi=resolution)
         else:
-            plt.savefig(save, dpi=72)
+            plt.savefig(save, dpi=resolution)
 
     # Close it to save memory
     plt.close()
