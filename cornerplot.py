@@ -46,6 +46,9 @@ def CornerPlot(dfs, df_names, corner_params, weights=None, bandwidth_fac=1, thre
 
     # get colormap
     stock_colors = ['#377eb8','#ff7f00','#4daf4a','#f781bf','#a65628','#984ea3','#999999','#e41a1c','#dede00']
+
+    # If a colormap name is provided, lookup linearly spaced RGB triples within it
+    # otherwise, just go with the stock_colors above
     colors = [matplotlib.cm.get_cmap(colormap)(x/len(stock_colors)) for x in range(len(stock_colors))] if colormap is not None else stock_colors
 
     # Build some nice gradients from the stock colors with increasing alpha, for use in shaded plots
